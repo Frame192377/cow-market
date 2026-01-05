@@ -1,0 +1,140 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+
+export default function EditProfile() {
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await API.get("/users/me");
+        // รองรับทั้งกรณี res.data = { user: {...} } หรือ res.data = {...}
+        const u = res.data.user || res.data;
+
+        setForm({
+          name: u.name || "",
+          phone: u.phone || "",
+          address: u.address || "",
+        });
+      } catch (err) {
+        console.error("LOAD PROFILE ERROR:", err.response || err);
+      }
+    };
+    load();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const fd = new FormData();
+    fd.append("name", form.name);
+    fd.append("phone", form.phone);
+    fd.append("address", form.address);
+    if (avatarFile) {
+      fd.append("avatar", avatarFile);
+    }
+
+    try {
+      const res = await API.put("/users/me", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      // รองรับทั้ง { user: {...} } และ {...}
+      const updatedUser = res.data.user || res.data;
+
+      // อัปเดต localStorage ให้เป็นข้อมูลล่าสุด
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+
+      alert("บันทึกโปรไฟล์เรียบร้อย");
+      navigate("/profile");
+    } catch (err) {
+      console.error("UPDATE PROFILE ERROR:", err.response || err);
+      alert(err.response?.data?.error || "อัปเดตโปรไฟล์ไม่สำเร็จ");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex justify-center py-10">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
+        <h1 className="text-2xl font-bold mb-1 text-center">แก้ไขโปรไฟล์</h1>
+        <p className="text-xs text-gray-500 mb-6 text-center">
+          อัปเดตชื่อ เบอร์โทร ที่อยู่ และรูปโปรไฟล์ของคุณ
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+          <div>
+            <label className="block mb-1">ชื่อ</label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1">โทรศัพท์</label>
+            <input
+              name="phone"
+              value={form.phone}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1">ที่อยู่</label>
+            <textarea
+              name="address"
+              value={form.address}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 min-h-[80px]"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1">รูปโปรไฟล์</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setAvatarFile(e.target.files[0] || null)}
+              className="w-full text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              รองรับไฟล์รูปภาพ เช่น .jpg, .png
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="px-4 py-2 rounded-full bg-gray-300 text-xs font-semibold hover:bg-gray-400"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-full bg-green-500 text-white text-xs font-semibold hover:bg-green-600"
+            >
+              บันทึก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
