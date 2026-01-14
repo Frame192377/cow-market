@@ -15,7 +15,12 @@ import EditProfile from "./pages/EditProfile";
 import MarketPage from './pages/MarketPage';
 import MarketDetail from './pages/MarketDetail';
 import SoldPage from "./pages/SoldPage";
-
+import EditMarket from "./pages/EditMarket";
+import ProductDetail from "./pages/ProductDetail";
+import PlaceOrder from "./pages/PlaceOrder";
+import OrderDashboard from "./pages/OrderDashboard";
+import MyOrders from "./pages/MyOrders";
+import AdminDashboard from "./pages/AdminDashboard";
 
 export default function App() {
   return (
@@ -39,6 +44,13 @@ export default function App() {
         <Route path="/market/:id" element={<MarketDetail />} />
         <Route path="/profile/:id" element={<Profile />} />
         <Route path="/sold-out" element={<SoldPage />} />
+        <Route path="/markets/:id/edit" element={<EditMarket />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+        <Route path="/profile/:id" element={<Profile />} />
+        <Route path="/place-order" element={<PlaceOrder />} />
+        <Route path="/order-dashboard" element={<OrderDashboard />} />
+        <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
     </Router>
   );

@@ -1,3 +1,4 @@
+// frontend/src/pages/Register.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../services/api";
@@ -12,7 +13,17 @@ export default function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await API.post("/auth/register", { name, email, phone, password });
+      // ส่งข้อมูลไป backend
+      // หมายเหตุ: backend ที่เราแก้ไปล่าสุด ใช้ key 'phoneNumber' แทน 'phone'
+      // แต่ใน controller เราเขียน logic รับค่าทั้งสองแบบไว้แล้ว (const userPhone = phoneNumber || phone;)
+      // ดังนั้นส่ง 'phone' ไปก็ได้ครับ
+      await API.post("/auth/register", { 
+        name, 
+        email, 
+        phone, 
+        password 
+      });
+      
       alert("สมัครสมาชิกสำเร็จ");
       navigate("/login");
     } catch (err) {
@@ -125,40 +136,13 @@ export default function Register() {
           {/* ปุ่ม SIGN UP */}
           <button
             type="submit"
-            className="w-full bg-black text-white text-xs font-semibold py-2 rounded-full mb-4 hover:bg-gray-900"
+            className="w-full bg-black text-white text-xs font-semibold py-2 rounded-full mb-2 hover:bg-gray-900"
           >
-            SING UP
+            SIGN UP
           </button>
 
-          {/* เส้น Or with */}
-          <div className="flex items-center mb-3">
-            <span className="flex-1 h-px bg-gray-300" />
-            <span className="px-2 text-[10px] text-gray-500">Or with</span>
-            <span className="flex-1 h-px bg-gray-300" />
-          </div>
-
-          {/* ปุ่ม Social (Mock) */}
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-2 bg-white text-[11px] text-gray-600 border border-gray-300 rounded-full py-1.5"
-            >
-              <span className="w-4 h-4 bg-blue-600 text-white text-[10px] flex items-center justify-center rounded">
-                f
-              </span>
-              Sign up with Facebook
-            </button>
-
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-2 bg-white text-[11px] text-gray-600 border border-gray-300 rounded-full py-1.5"
-            >
-              <span className="w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded">
-                G
-              </span>
-              Sign up with Google
-            </button>
-          </div>
+          {/* ✅ ลบส่วน Or with และปุ่ม Social ออกแล้ว */}
+          
         </form>
       </div>
     </div>

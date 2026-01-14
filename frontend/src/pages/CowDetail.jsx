@@ -1,6 +1,6 @@
 // frontend/src/pages/CowDetail.jsx
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
 
 const API_URL = "http://localhost:5000";
@@ -8,13 +8,18 @@ const API_URL = "http://localhost:5000";
 export default function CowDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [cow, setCow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // State สำหรับรูปภาพ
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  // State สำหรับปุ่ม Next/Prev Post
+  const [prevId, setPrevId] = useState(null);
+  const [nextId, setNextId] = useState(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -27,18 +32,48 @@ export default function CowDetail() {
     }
   }, []);
 
+  // Fetch ข้อมูลวัว และ หา Next/Prev ID
   useEffect(() => {
-    const fetchCow = async () => {
+    const fetchData = async () => {
+      setLoading(true);
       try {
+        // 1. ดึงข้อมูลวัวตัวปัจจุบัน
         const res = await API.get(`/cows/${id}`);
         setCow(res.data);
+        setCurrentImageIndex(0); // รีเซ็ตรูปภาพเมื่อเปลี่ยนโพสต์
+
+        // 2. ดึงข้อมูลวัวทั้งหมดเพื่อหา ID ก่อนหน้าและถัดไป (Logic เบื้องต้น)
+        // หมายเหตุ: ในระบบจริงควรมี API endpoint เช่น /cows/:id/neighbors เพื่อประสิทธิภาพที่ดีกว่า
+        const allRes = await API.get('/cows'); 
+        const allCows = allRes.data; // สมมติว่า response เป็น array ของวัว
+        
+        // หา index ของวัวตัวปัจจุบัน
+        // แปลง id เป็น string หรือ number ให้ตรงกันเพื่อเปรียบเทียบ
+        const currentIndex = allCows.findIndex(c => c.id.toString() === id.toString());
+
+        if (currentIndex !== -1) {
+          // ถ้ามีตัวก่อนหน้า
+          if (currentIndex > 0) {
+            setPrevId(allCows[currentIndex - 1].id);
+          } else {
+            setPrevId(null);
+          }
+
+          // ถ้ามีตัวถัดไป
+          if (currentIndex < allCows.length - 1) {
+            setNextId(allCows[currentIndex + 1].id);
+          } else {
+            setNextId(null);
+          }
+        }
+
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchCow();
+    fetchData();
   }, [id]);
 
   const formatDate = (dateString) => {
@@ -60,6 +95,7 @@ export default function CowDetail() {
     return `${API_URL}${path}`;
   };
 
+  // จัดการเลื่อนรูปใน Lightbox
   const nextImage = (e) => {
     e?.stopPropagation();
     setCurrentImageIndex((prev) => (prev + 1) % images.length);
@@ -68,6 +104,15 @@ export default function CowDetail() {
   const prevImage = (e) => {
     e?.stopPropagation();
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  // จัดการเปลี่ยนโพสต์ (Navigation)
+  const handlePrevPost = () => {
+    if (prevId) navigate(`/cows/${prevId}`);
+  };
+
+  const handleNextPost = () => {
+    if (nextId) navigate(`/cows/${nextId}`);
   };
 
   const handleDelete = async () => {
@@ -126,6 +171,7 @@ export default function CowDetail() {
   }
 
   const sellerName = cow.User?.name || "ไม่ระบุ";
+  const marketName = cow.Market?.name || "-";
   const approxPrice = cow.price?.toLocaleString() || "-";
   const isOwner = currentUser && (cow.userId === currentUser.id || cow.User?.id === currentUser.id);
 
@@ -163,25 +209,43 @@ export default function CowDetail() {
         </div>
       </header>
 
-      {/* Main Card */}
-      <main className="max-w-6xl mx-auto px-4">
-        <div className="bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+      {/* Main Container with Navigation Arrows */}
+      <main className="max-w-[90rem] mx-auto px-4 flex items-center justify-center gap-6">
+        
+        {/* --- ปุ่มลูกศรซ้าย (Previous Post) --- */}
+        <div className="hidden xl:block">
+           {prevId ? (
+             <button 
+               onClick={handlePrevPost}
+               className="group bg-white hover:bg-green-500 hover:text-white text-gray-400 rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:shadow-green-200 transition-all transform hover:scale-110 focus:outline-none"
+               title="โพสต์ก่อนหน้า"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+             </button>
+           ) : (
+             <div className="w-14 h-14" /> /* พื้นที่ว่างถ้าไม่มีปุ่ม */
+           )}
+        </div>
+
+        {/* --- Card กลาง (ตัวเดิมของคุณ) --- */}
+        <div className="bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col md:flex-row max-w-6xl w-full">
           
-          {/* --- ฝั่งซ้าย: รูปภาพ (ลดความสูงลง) --- */}
-          {/* ✅ เปลี่ยนจาก md:h-[650px] เป็น md:h-[500px] */}
-          <div className="w-full md:w-1/2 bg-gray-100 relative group border-r border-gray-100 md:h-[500px]">
-             {cow.status === 'sold' && (
+          {/* --- ฝั่งซ้าย: รูปภาพ --- */}
+          <div className="w-full md:w-1/2 bg-gray-100 relative group border-r border-gray-100 md:h-[500px] overflow-hidden">
+              {cow.status === 'sold' && (
                 <div className="absolute top-5 right-[-50px] rotate-45 bg-red-600 text-white px-12 py-1 font-bold shadow-md z-20">SOLD OUT</div>
-             )}
-             
-             {/* Slider Container */}
-             <div className="w-full h-[400px] md:h-full flex items-center justify-center relative overflow-hidden bg-gray-200">
+              )}
+              
+              <div className="w-full h-[400px] md:h-full flex items-center justify-center relative overflow-hidden bg-gray-200">
                 <img
                   src={getImageUrl(images.length > 0 ? images[currentImageIndex] : null)}
                   alt={cow.name}
-                  className={`w-full h-full object-cover cursor-zoom-in transition-transform duration-500 ${cow.status === 'sold' ? 'grayscale opacity-70' : ''}`}
+                  className={`w-full h-full object-cover cursor-zoom-in transition-transform duration-500 hover:scale-110 ${cow.status === 'sold' ? 'grayscale opacity-70' : ''}`}
                   onClick={() => images.length > 0 && setIsLightboxOpen(true)}
                 />
+                
                 {images.length > 1 && (
                   <>
                     <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2 rounded-full shadow-lg transition opacity-0 group-hover:opacity-100 transform -translate-x-2 group-hover:translate-x-0">
@@ -196,22 +260,21 @@ export default function CowDetail() {
                   </>
                 )}
                 {images.length === 0 && <div className="text-gray-400">ไม่มีรูปภาพ</div>}
-             </div>
+              </div>
 
-             {/* Thumbnails */}
-             {images.length > 1 && (
-               <div className="absolute bottom-4 left-4 right-16 flex gap-2 overflow-x-auto p-1 no-scrollbar">
-                 {images.map((img, idx) => (
-                   <button 
-                     key={idx} 
-                     onClick={() => setCurrentImageIndex(idx)}
-                     className={`w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${currentImageIndex === idx ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                   >
-                     <img src={getImageUrl(img)} className="w-full h-full object-cover" alt="thumb" />
-                   </button>
-                 ))}
-               </div>
-             )}
+              {images.length > 1 && (
+                <div className="absolute bottom-4 left-4 right-16 flex gap-2 overflow-x-auto p-1 no-scrollbar">
+                  {images.map((img, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => setCurrentImageIndex(idx)}
+                      className={`w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${currentImageIndex === idx ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                    >
+                      <img src={getImageUrl(img)} className="w-full h-full object-cover" alt="thumb" />
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
 
           {/* --- ฝั่งขวา: รายละเอียด --- */}
@@ -277,6 +340,53 @@ export default function CowDetail() {
                     </div>
                 </div>
 
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-bold uppercase">พ่อพันธุ์/น้ำเชื้อ</p>
+                        <p className="font-semibold">{cow.sireName || "-"}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-bold uppercase">ขายที่ตลาดนัด</p>
+                        {cow.Market ? (
+                           <Link 
+                             to={`/market/${cow.marketId}`} 
+                             className="inline-block font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg mt-1 transition-all duration-300 hover:scale-110 hover:shadow-md hover:bg-blue-100 cursor-pointer"
+                           >
+                             {marketName} ➚
+                           </Link>
+                        ) : (
+                           <p className="font-semibold text-gray-500">-</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-bold uppercase">ประวัติวัคซีน</p>
+                        <p className="font-semibold text-sm leading-snug">
+                            {cow.vaccineHistory || "-"}
+                        </p>
+                    </div>
+                </div>
+
                 <div className="col-span-2 mt-2">
                     <p className="text-xs text-gray-400 font-bold uppercase mb-1">รายละเอียดเพิ่มเติม</p>
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-gray-600 text-sm leading-relaxed max-h-40 overflow-y-auto">
@@ -318,6 +428,24 @@ export default function CowDetail() {
 
           </div>
         </div>
+
+        {/* --- ปุ่มลูกศรขวา (Next Post) --- */}
+        <div className="hidden xl:block">
+           {nextId ? (
+             <button 
+               onClick={handleNextPost}
+               className="group bg-white hover:bg-green-500 hover:text-white text-gray-400 rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:shadow-green-200 transition-all transform hover:scale-110 focus:outline-none"
+               title="โพสต์ถัดไป"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+             </button>
+           ) : (
+             <div className="w-14 h-14" /> /* พื้นที่ว่างถ้าไม่มีปุ่ม */
+           )}
+        </div>
+
       </main>
     </div>
   );

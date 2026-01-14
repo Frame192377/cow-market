@@ -1,31 +1,38 @@
 // backend/src/controllers/cowController.js
-const { Cow, User } = require('../models');
+const { Cow, User, Market } = require('../models'); 
+
+// ✅ Helper: ฟังก์ชันแปลงค่าเป็นตัวเลข (ป้องกัน NaN)
+const parseNumber = (val) => {
+  if (!val) return 0;
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+};
 
 // GET /api/cows
-// รองรับ ?status=sold หรือ ?status=available
 exports.listCows = async (req, res) => {
   try {
     const { status } = req.query;
 
-    // สร้างเงื่อนไขการค้นหา
     const whereClause = {};
+    
+    // ✅ ถ้าไม่ได้ระบุสถานะมา ให้ดึงเฉพาะที่ 'approved' เท่านั้น
     if (status && status !== 'all') {
       whereClause.status = status;
     } else if (!status) {
-      // ค่าเริ่มต้น: ถ้าไม่ส่ง status มา ให้โชว์เฉพาะที่ "ว่าง" (available)
-      whereClause.status = 'available';
+      whereClause.status = 'approved'; 
     }
 
     const cows = await Cow.findAll({
-      where: whereClause, // ✅ ใส่เงื่อนไขกรองสถานะ
-      // ✅ เพิ่ม phoneNumber เพื่อให้หน้าเว็บเอาไปแสดงตอนติดต่อเจ้าของ
-      include: [{ model: User, as: 'User', attributes: ['id', 'name', 'phoneNumber'] }],
+      where: whereClause,
+      include: [
+        { model: User, as: 'User', attributes: ['id', 'name', 'phoneNumber'] }
+      ],
       order: [['createdAt', 'DESC']],
     });
     res.json(cows);
   } catch (err) {
     console.error('listCows ERROR:', err);
-    res.status(500).json({ error: 'ไม่สามารถดึงข้อมูลวัวได้' });
+    res.status(500).json({ error: 'Cannot retrieve cow data' });
   }
 };
 
@@ -33,13 +40,22 @@ exports.listCows = async (req, res) => {
 exports.getCowById = async (req, res) => {
   try {
     const cow = await Cow.findByPk(req.params.id, {
-      include: [{ model: User, as: 'User', attributes: ['id', 'name', 'phoneNumber'] }],
+      include: [
+        { model: User, as: 'User', attributes: ['id', 'name', 'phoneNumber'] },
+        // ดึงข้อมูลตลาดนัด
+        { 
+          model: Market, 
+          as: 'Market', 
+          attributes: ['name', 'location'] 
+        } 
+      ],
     });
-    if (!cow) return res.status(404).json({ error: 'ไม่พบวัวตัวนี้' });
+    
+    if (!cow) return res.status(404).json({ error: 'Cow not found' });
     res.json(cow);
   } catch (err) {
     console.error('getCowById ERROR:', err);
-    res.status(500).json({ error: 'ไม่สามารถดึงข้อมูลวัวได้' });
+    res.status(500).json({ error: 'Cannot retrieve cow data' });
   }
 };
 
@@ -47,39 +63,40 @@ exports.getCowById = async (req, res) => {
 exports.createCow = async (req, res) => {
   try {
     const {
-      name,
-      gender,
-      age,
-      weight,
-      breed,
-      price,
-      location,
-      description,
-      category,
+      name, gender, age, weight, breed, price, location, description, category,
+      sireName, 
+      marketId,
+      vaccineHistory, // ✅ 1. รับค่าประวัติวัคซีน
     } = req.body;
 
-    // เก็บ path เต็ม ตามที่คุณต้องการ
     const images = req.files?.map((f) => `/uploads/${f.filename}`) || [];
 
     const cow = await Cow.create({
       name,
       gender,
-      age: age ? Number(age) : null,
-      weight,
+      age: parseNumber(age),
+      weight: parseNumber(weight),
+      price: parseNumber(price),
       breed,
-      price,
+      sireName, 
       location,
       description,
       category: category || 'cow',
+      
+      marketId: marketId ? parseNumber(marketId) : null,
+      
+      // ✅ 2. บันทึกลง DB
+      vaccineHistory, 
+
       images,
       userId: req.user.id,
-      status: 'available' // ✅ กำหนดค่าเริ่มต้นเป็น ว่าง
+      status: 'pending' // ✅ เปลี่ยนจาก 'available' เป็น 'pending'
     });
 
     res.json(cow);
   } catch (err) {
     console.error('createCow ERROR:', err);
-    res.status(400).json({ error: err.message || 'สร้างรายการวัวไม่สำเร็จ' });
+    res.status(400).json({ error: err.message || 'Create cow listing failed' });
   }
 };
 
@@ -87,24 +104,17 @@ exports.createCow = async (req, res) => {
 exports.updateCow = async (req, res) => {
   try {
     const cow = await Cow.findByPk(req.params.id);
-    if (!cow) {
-      return res.status(404).json({ error: 'ไม่พบวัวตัวนี้' });
-    }
+    if (!cow) return res.status(404).json({ error: 'Cow not found' });
 
     if (cow.userId !== req.user.id) {
-      return res.status(403).json({ error: 'คุณไม่มีสิทธิ์แก้ไขรายการนี้' });
+      return res.status(403).json({ error: 'You do not have permission to edit this item' });
     }
 
     const {
-      name,
-      gender,
-      age,
-      weight,
-      breed,
-      price,
-      location,
-      description,
-      category,
+      name, gender, age, weight, breed, price, location, description, category,
+      sireName,
+      marketId,
+      vaccineHistory, // ✅ รับค่าตอนแก้ไข
     } = req.body;
 
     let images = cow.images || [];
@@ -115,20 +125,28 @@ exports.updateCow = async (req, res) => {
     await cow.update({
       name,
       gender,
-      age: age ? Number(age) : null,
-      weight,
+      age: parseNumber(age),
+      weight: parseNumber(weight),
+      price: parseNumber(price),
       breed,
-      price,
+      sireName,
       location,
       description,
       category: category || cow.category,
+      
+      marketId: marketId ? parseNumber(marketId) : null,
+      
+      // ✅ อัปเดตวัคซีน
+      vaccineHistory,
+
       images,
+      status: 'pending' // ✅ เมื่อแก้ไข ให้กลับไปรออนุมัติใหม่ (Optional)
     });
 
     res.json(cow);
   } catch (err) {
     console.error('updateCow ERROR:', err);
-    res.status(400).json({ error: err.message || 'แก้ไขข้อมูลวัวไม่สำเร็จ' });
+    res.status(400).json({ error: err.message || 'Update cow data failed' });
   }
 };
 
@@ -136,39 +154,35 @@ exports.updateCow = async (req, res) => {
 exports.deleteCow = async (req, res) => {
   try {
     const cow = await Cow.findByPk(req.params.id);
-    if (!cow) {
-      return res.status(404).json({ error: 'ไม่พบวัวตัวนี้' });
-    }
+    if (!cow) return res.status(404).json({ error: 'Cow not found' });
 
     if (cow.userId !== req.user.id) {
-      return res.status(403).json({ error: 'คุณไม่มีสิทธิ์ลบรายการนี้' });
+      return res.status(403).json({ error: 'You do not have permission to delete this item' });
     }
 
     await cow.destroy();
-    res.json({ message: 'ลบรายการเรียบร้อย' });
+    res.json({ message: 'Item deleted successfully' });
   } catch (err) {
     console.error('deleteCow ERROR:', err);
-    res.status(500).json({ error: 'ลบรายการไม่สำเร็จ' });
+    res.status(500).json({ error: 'Delete item failed' });
   }
 };
 
-// ✅ เพิ่มฟังก์ชันนี้: กดปุ่ม "ขายแล้ว" (PUT /api/cows/:id/sold)
+// PUT /api/cows/:id/sold
 exports.markAsSold = async (req, res) => {
   try {
     const cow = await Cow.findByPk(req.params.id);
-    if (!cow) return res.status(404).json({ error: 'ไม่พบวัวตัวนี้' });
+    if (!cow) return res.status(404).json({ error: 'Cow not found' });
 
-    // เช็คว่าเป็นเจ้าของไหม
     if (cow.userId !== req.user.id) {
-      return res.status(403).json({ error: 'คุณไม่ใช่เจ้าของโพสต์นี้' });
+      return res.status(403).json({ error: 'You are not the owner of this post' });
     }
 
-    // อัปเดตสถานะเป็น sold
     await cow.update({ status: 'sold' });
     
-    res.json({ message: 'ปิดการขายเรียบร้อย', cow });
+    res.json({ message: 'Marked as sold successfully', cow });
   } catch (err) {
     console.error('markAsSold ERROR:', err);
-    res.status(500).json({ error: 'อัปเดตสถานะไม่สำเร็จ' });
+    res.status(500).json({ error: 'Update status failed' });
   }
 };

@@ -1,30 +1,52 @@
 const express = require('express');
 const router = express.Router();
 const marketController = require('../controllers/marketController');
-const multer = require('multer'); // 1. ต้อง import multer
+const { authenticate } = require('../middlewares/auth'); // ✅ 1. ต้อง Import ตัวนี้มาด้วย!
+const multer = require('multer');
+const path = require('path');
 
-// 2. ตั้งค่าที่เก็บไฟล์ (Config Multer)
+// ตั้งค่า Multer
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/'); // โฟลเดอร์สำหรับเก็บรูป (ต้องมีโฟลเดอร์นี้อยู่จริง)
+    // ใช้ path.join เพื่อความชัวร์เรื่อง path (.. ถอยกลับไป root แล้วเข้า uploads)
+    cb(null, path.join(__dirname, '..', '..', 'uploads')); 
   },
   filename: function (req, file, cb) {
-    // ตั้งชื่อไฟล์ใหม่กันซ้ำ (เวลา + ชื่อเดิม)
-    cb(null, Date.now() + '-' + file.originalname);
+    // ตั้งชื่อไฟล์ใหม่กันซ้ำ และลบช่องว่างในชื่อไฟล์ออก
+    cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'));
   }
 });
 
 const upload = multer({ storage: storage });
 
-// GET /api/markets -> ดึงข้อมูลตลาดทั้งหมด
-router.get('/', marketController.getAllMarkets);
+// --- Routes ---
 
-// GET /api/markets/:id -> ดึงข้อมูลตลาดตาม ID
+// GET: ดูข้อมูลไม่ต้องล็อกอิน
+router.get('/', marketController.getAllMarkets);
 router.get('/:id', marketController.getMarketById);
 
-// POST /api/markets -> เพิ่มตลาดใหม่
-// 3. 🔥 ใส่ upload.array('images') คั่นกลางตรงนี้ 🔥
-// คำว่า 'images' ต้องตรงกับที่ formData.append("images", ...) ใน React
-router.post('/', upload.array('images'), marketController.createMarket);
+// POST: เพิ่มตลาดใหม่ (ต้องล็อกอิน)
+// ✅ 2. ใส่ 'authenticate' ไว้ตัวแรกสุด
+router.post(
+  '/', 
+  authenticate, 
+  upload.array('images'), 
+  marketController.createMarket
+);
+
+// PUT: แก้ไขตลาด (ต้องล็อกอิน)
+router.put(
+  '/:id', 
+  authenticate, 
+  upload.array('images'), 
+  marketController.updateMarket
+);
+
+// DELETE: ลบตลาด (ต้องล็อกอิน)
+router.delete(
+  '/:id', 
+  authenticate, 
+  marketController.deleteMarket
+);
 
 module.exports = router;
