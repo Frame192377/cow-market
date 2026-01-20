@@ -154,7 +154,7 @@ export default function PlaceOrder() {
                 <span className="text-gray-600">ค่าจัดส่ง</span>
                 {shippingCost === 0 ? <span className="text-green-600 font-bold">ฟรี</span> : <span className="text-red-500 font-medium">+{shippingCost} บ.</span>}
              </div>
-             {shippingCost > 0 && <p className="text-[10px] text-gray-400 text-right">*ซื้อครบ 500 บาท ส่งฟรี</p>}
+             {shippingCost > 0 && <p className="text-[10px] text-gray-400 text-right">*ซื้อครบ 200 บาท ส่งฟรี</p>}
           </div>
 
           <div className="flex justify-between font-extrabold text-xl mt-4 pt-4 border-t border-gray-200 text-green-700">
